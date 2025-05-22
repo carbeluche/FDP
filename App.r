@@ -101,11 +101,18 @@ data <- data.frame(
                           45.24, 34.16, 23.27, 42.26, 27.34, 26.57, 21.45, 32.65, 25.46)
 
 )
+# Add Number_of_Errors
+data$Number_of_Errors <- c(
+  0, 0, 1, 2, 1, 0, 2, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0,
+  0, 1, 1, 0, 1, 1, 2, 2, 0, 1, 0, 1, 0, 2, 1, 0, 1, 2, 1, 0,
+  0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 2, 0, 0, 1, 0, 2, 0, 0, 1,
+  0, 0, 0, 0, 0, 0, 2, 1, 0, 2, 0, 0, 0, 1, 0, 1, 0, 2, 0, 0,
+  2, 0, 1, 0, 0, 0, 1, 0, 0,0
+)
 # DisabilityType must be have this defined order in the plots
 data$DisabilityType <- factor(data$DisabilityType, levels = c("Motor", "Visual", "Auditory"))
 # Color palette for better visuals
 palette <- c("Motor" = "#7b519c", "Visual" = "#38899c", "Auditory" = "#d64db2")  
-
 # UI
 ui <- fluidPage(
   titlePanel("Interactive Dashboard"),
@@ -153,9 +160,10 @@ server <- function(input, output) {
   # PLOT 1: SUS Score boxplot
   output$susPlot <- renderPlot({
     ggplot(filtered_data(), aes(x = DisabilityType, y = SUS_Score, fill = DisabilityType)) +
-      geom_boxplot() +
-      theme_minimal() +
-      labs(title = "SUS Score by Simulation Type", x = "Disability Type", y = "SUS Score")
+        geom_boxplot() +
+        scale_fill_manual(values = palette) +  
+        theme_minimal() +
+        labs(title = "SUS Score by Simulation Type", x = "Disability Type", y = "SUS Score")
   })
   # PLOT 2: Average Number of Errors barplot
   output$errorPlot <- renderPlot({
@@ -164,6 +172,7 @@ server <- function(input, output) {
       summarise(Avg_Errors = mean(Number_of_Errors, na.rm = TRUE)) %>%
       ggplot(aes(x = DisabilityType, y = Avg_Errors, fill = DisabilityType)) +
       geom_bar(stat = "identity") +
+      scale_fill_manual(values = palette) +
       theme_minimal() +
       labs(title = "Average Number of Errors by Simulation Type", x = "Disability Type", y = "Average Errors")
   })
@@ -171,6 +180,7 @@ server <- function(input, output) {
   output$timePlot <- renderPlot({
     ggplot(filtered_data(), aes(x = DisabilityType, y = Task_Completion_Time, fill = DisabilityType)) +
       geom_boxplot() +
+      scale_fill_manual(values = palette) +
       theme_minimal() +
       labs(title = "Task Completion Time by Simulation Type", x = "Disability Type", y = "Time (seconds)")
   })
@@ -320,5 +330,5 @@ server <- function(input, output) {
     cat("\nPost-hoc Tukey:\n"); print(tukey_likert$contrasts)
   })
 }
-# Ejecutar
-shiny::runApp("App.R")
+shinyApp(ui = ui, server = server)
+
