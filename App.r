@@ -1,7 +1,3 @@
-# DASHBOARD WITH SHINY
-
-# Required libraries
-install.packages(c("shiny", "ggplot2", "dplyr", "gridExtra", "patchwork", "afex", "emmeans"))
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -9,7 +5,6 @@ library(gridExtra)
 library(patchwork)
 library(afex)
 library(emmeans)
-# Manually enter the data from the Excel (Student ID repeated for each simulation) # nolint: line_length_linter.
 data <- data.frame(
     Student = c(1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6,7,7,7,8,8,8,9,9,9,10,10,10,11,11,11,12,12,12,13,13,13,14,14,14,15,15,15,16,16,16,17,17,17,18,18,18,19,19,19,20,20,20,21,21,21,22,22,22,23,23,23,24,24,24,25,25,25,26,26,26,27,27,27,28,28,28,29,29,29,30,30,30), # nolint
     Gender = c(
@@ -101,6 +96,17 @@ data <- data.frame(
                           45.24, 34.16, 23.27, 42.26, 27.34, 26.57, 21.45, 32.65, 25.46)
 
 )
+palette <- c("Motor" = "#e7d0f5", "Visual" = "#dcf0f7", "Auditory" = "#ffebfd")  
+custom_theme <- theme_minimal(base_size = 16) +
+  theme(
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 13)
+  )
+data$DisabilityType <- factor(data$DisabilityType, levels = c("Motor", "Visual", "Auditory"))
 # Add Number_of_Errors
 data$Number_of_Errors <- c(
   0, 0, 1, 2, 1, 0, 2, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0,
@@ -109,22 +115,17 @@ data$Number_of_Errors <- c(
   0, 0, 0, 0, 0, 0, 2, 1, 0, 2, 0, 0, 0, 1, 0, 1, 0, 2, 0, 0,
   2, 0, 1, 0, 0, 0, 1, 0, 0,0
 )
-# DisabilityType must be have this defined order in the plots
-data$DisabilityType <- factor(data$DisabilityType, levels = c("Motor", "Visual", "Auditory"))
-# Color palette for better visuals
-palette <- c("Motor" = "#7b519c", "Visual" = "#38899c", "Auditory" = "#d64db2")  
-# UI
 ui <- fluidPage(
   titlePanel("Interactive Dashboard"),
   sidebarLayout(
     sidebarPanel(
       selectInput("disability", "Select Simulation Type:",
-                  choices = c("All", "Motor", "Visual", "Auditory"),
+                  choices = c("All", levels(data$DisabilityType)),
                   selected = "All"),
       selectInput("gender", "Filter by Gender:",
-                  choices = c("All", "MALE", "FEMALE"), selected = "All"),
+                  choices = c("All", unique(data$Gender)), selected = "All"),
       selectInput("assistance", "Filter by Assistance:",
-                  choices = c("All", "YES", "NO"), selected = "All"),
+                  choices = c("All", unique(data$AssistanceNeeded)), selected = "All")
     ),
     mainPanel(
       tabsetPanel(
@@ -141,31 +142,24 @@ ui <- fluidPage(
     )
   )
 )
-# Server
+
 server <- function(input, output) {
-  # Datos filtrados según los selectInput
   filtered_data <- reactive({
     df <- data
-      if (input$disability != "All") {
-        df <- df %>% filter(DisabilityType == input$disability)
-      }
-      if (input$gender != "All") {
-        df <- df %>% filter(Gender == input$gender)
-      }
-      if (input$assistance != "All") {
-        df <- df %>% filter(AssistanceNeeded == input$assistance)
-      }
-    return(df)
+    if (input$disability != "All") df <- df %>% filter(DisabilityType == input$disability)
+    if (input$gender != "All") df <- df %>% filter(Gender == input$gender)
+    if (input$assistance != "All") df <- df %>% filter(AssistanceNeeded == input$assistance)
+    df
   })
-  # PLOT 1: SUS Score boxplot
+
   output$susPlot <- renderPlot({
     ggplot(filtered_data(), aes(x = DisabilityType, y = SUS_Score, fill = DisabilityType)) +
-        geom_boxplot() +
-        scale_fill_manual(values = palette) +  
-        theme_minimal() +
-        labs(title = "SUS Score by Simulation Type", x = "Disability Type", y = "SUS Score")
+      geom_boxplot() +
+      scale_fill_manual(values = palette) +
+      theme_minimal() +
+      labs(title = "SUS Score by Simulation Type", x = "Disability Type", y = "SUS Score")
   })
-  # PLOT 2: Average Number of Errors barplot
+
   output$errorPlot <- renderPlot({
     filtered_data() %>%
       group_by(DisabilityType) %>%
@@ -174,163 +168,89 @@ server <- function(input, output) {
       geom_bar(stat = "identity") +
       scale_fill_manual(values = palette) +
       theme_minimal() +
-      labs(title = "Average Number of Errors by Simulation Type", x = "Disability Type", y = "Average Errors")
+      labs(title = "Average Number of Errors", x = "Disability Type", y = "Avg Errors")
   })
-  # PLOT 3: Task Time boxplot
+
   output$timePlot <- renderPlot({
     ggplot(filtered_data(), aes(x = DisabilityType, y = Task_Completion_Time, fill = DisabilityType)) +
       geom_boxplot() +
       scale_fill_manual(values = palette) +
       theme_minimal() +
-      labs(title = "Task Completion Time by Simulation Type", x = "Disability Type", y = "Time (seconds)")
+      labs(title = "Task Completion Time", x = "Disability Type", y = "Time (s)")
   })
-  # PLOT 4: Boxplots of SUS, Time, Likert Score (combinado con gridExtra)
+
   output$boxPlots <- renderPlot({
     df <- filtered_data()
-    df$DisabilityType <- factor(df$DisabilityType, levels = c("Motor", "Visual", "Auditory"))
-    palette <- c("Motor" = "#7b519c", "Visual" = "#38899c", "Auditory" = "#d64db2")
-    plot_sus <- ggplot(df, aes(x = DisabilityType, y = SUS_Score, fill = DisabilityType)) +
-      geom_boxplot() +
-      scale_fill_manual(values = palette) +
-      labs(title = "SUS Score", x = "Disability Type", y = "SUS Score") +
-      theme_minimal() + theme(legend.position = "none")
-    plot_time <- ggplot(df, aes(x = DisabilityType, y = Task_Completion_Time, fill = DisabilityType)) +
-      geom_boxplot() +
-      scale_fill_manual(values = palette) +
-      labs(title = "Task Completion Time", x = "Disability Type", y = "Time (s)") +
-      theme_minimal() + theme(legend.position = "none")
-    plot_likert <- ggplot(df, aes(x = DisabilityType, y = Likert_Score, fill = DisabilityType)) +
-      geom_boxplot() +
-      scale_fill_manual(values = palette) +
-      labs(title = "Likert Score", x = "Disability Type", y = "Likert Score") +
-      theme_minimal() + theme(legend.position = "none")
-    gridExtra::grid.arrange(plot_sus, plot_time, plot_likert, ncol = 3,
-                            top = "Figure: Boxplots of Usability Metrics by Disability Type")
+    p1 <- ggplot(df, aes(x = DisabilityType, y = SUS_Score, fill = DisabilityType)) +
+      geom_boxplot() + scale_fill_manual(values = palette) + theme_minimal() +
+      labs(title = "SUS") + theme(legend.position = "none")
+    p2 <- ggplot(df, aes(x = DisabilityType, y = Task_Completion_Time, fill = DisabilityType)) +
+      geom_boxplot() + scale_fill_manual(values = palette) + theme_minimal() +
+      labs(title = "Time") + theme(legend.position = "none")
+    p3 <- ggplot(df, aes(x = DisabilityType, y = Likert_Score, fill = DisabilityType)) +
+      geom_boxplot() + scale_fill_manual(values = palette) + theme_minimal() +
+      labs(title = "Likert") + theme(legend.position = "none")
+    grid.arrange(p1, p2, p3, ncol = 3)
   })
-  # MEAN PLOTS
+
   output$meanPlots <- renderPlot({
-    df <- filtered_data()
-    df$DisabilityType <- factor(df$DisabilityType, levels = c("Motor", "Visual", "Auditory"))
-    palette <- c("Motor" = "#7b519c", "Visual" = "#38899c", "Auditory" = "#d64db2")
-    mean_df <- df %>%
-      group_by(DisabilityType) %>%
-      summarise(
-        Mean_SUS = mean(SUS_Score, na.rm = TRUE),
-        Mean_Likert = mean(Likert_Score, na.rm = TRUE),
-        Mean_Time = mean(Task_Completion_Time, na.rm = TRUE)
-      )
-    bar_sus <- ggplot(mean_df, aes(x = DisabilityType, y = Mean_SUS, fill = DisabilityType)) +
-      geom_bar(stat = "identity") +
-      scale_fill_manual(values = palette) +
-      labs(title = "Mean SUS Score", y = "Mean SUS", x = "Disability Type") +
-      theme_minimal() + theme(legend.position = "none")
-    bar_time <- ggplot(mean_df, aes(x = DisabilityType, y = Mean_Time, fill = DisabilityType)) +
-      geom_bar(stat = "identity") +
-      scale_fill_manual(values = palette) +
-      labs(title = "Mean Task Completion Time", y = "Mean Time (s)", x = "Disability Type") +
-      theme_minimal() + theme(legend.position = "none")
-    bar_likert <- ggplot(mean_df, aes(x = DisabilityType, y = Mean_Likert, fill = DisabilityType)) +
-      geom_bar(stat = "identity") +
-      scale_fill_manual(values = palette) +
-      labs(title = "Mean Likert Score", y = "Mean Likert", x = "Disability Type") +
-      theme_minimal() + theme(legend.position = "none")
-    gridExtra::grid.arrange(bar_sus, bar_time, bar_likert, ncol = 3,
-                            top = "Figure: Group-Level Means by Disability Type")
+    df <- filtered_data() %>% group_by(DisabilityType) %>%
+      summarise(Mean_SUS = mean(SUS_Score), Mean_Likert = mean(Likert_Score), Mean_Time = mean(Task_Completion_Time))
+    p1 <- ggplot(df, aes(x = DisabilityType, y = Mean_SUS, fill = DisabilityType)) +
+      geom_bar(stat = "identity") + scale_fill_manual(values = palette) + theme_minimal() + labs(title = "Mean SUS")
+    p2 <- ggplot(df, aes(x = DisabilityType, y = Mean_Likert, fill = DisabilityType)) +
+      geom_bar(stat = "identity") + scale_fill_manual(values = palette) + theme_minimal() + labs(title = "Mean Likert")
+    p3 <- ggplot(df, aes(x = DisabilityType, y = Mean_Time, fill = DisabilityType)) +
+      geom_bar(stat = "identity") + scale_fill_manual(values = palette) + theme_minimal() + labs(title = "Mean Time")
+    grid.arrange(p1, p2, p3, ncol = 3)
   })
-  # DISTRIBUTIONS
+
   output$distributionPlots <- renderPlot({
     df <- filtered_data()
-    df$DisabilityType <- factor(df$DisabilityType, levels = c("Motor", "Visual", "Auditory"))
-    df$AssistanceNeeded <- factor(df$AssistanceNeeded, levels = c("NO", "YES"))
-    gender_palette <- c("MALE" = "#293aab", "FEMALE" = "#de7880")
-    assist_palette <- c("NO" = "#e89d1c", "YES" = "#a1c9a5")
-    plot_gender <- ggplot(df, aes(x = DisabilityType, fill = Gender)) +
-      geom_bar(position = "dodge") +
-      scale_fill_manual(values = gender_palette) +
-      labs(title = "Participants by Gender and Disability Type", x = "Disability Type", y = "Count") +
-      theme_minimal()
-    plot_assist <- ggplot(df, aes(x = DisabilityType, fill = AssistanceNeeded)) +
-      geom_bar(position = "dodge") +
-      scale_fill_manual(values = assist_palette) +
-      labs(title = "Participants by Assistance Needed and Disability Type", x = "Disability Type", y = "Count") +
-      theme_minimal()
-    plot_gender_assist <- ggplot(df, aes(x = AssistanceNeeded, fill = Gender)) +
-      geom_bar(position = "dodge") +
-      scale_fill_manual(values = gender_palette) +
-      labs(title = "Participants by Gender and Assistance Needed", x = "Assistance Needed", y = "Count") +
-      theme_minimal()
-    gridExtra::grid.arrange(plot_gender, plot_assist, plot_gender_assist, ncol = 3,
-                            top = "Figure: Participant Distributions by Category")
+    p1 <- ggplot(df, aes(x = DisabilityType, fill = Gender)) + geom_bar(position = "dodge") + theme_minimal()
+    p2 <- ggplot(df, aes(x = DisabilityType, fill = AssistanceNeeded)) + geom_bar(position = "dodge") + theme_minimal()
+    p3 <- ggplot(df, aes(x = AssistanceNeeded, fill = Gender)) + geom_bar(position = "dodge") + theme_minimal()
+    grid.arrange(p1, p2, p3, ncol = 3)
   })
+
   output$scatterPlots <- renderPlot({
     df <- filtered_data()
-    plot1 <- ggplot(df, aes(x = SUS_Score, y = Task_Completion_Time)) +
-      geom_point() +
-      geom_smooth(method = "lm", color = "blue", se = TRUE) +
-      labs(title = "SUS Score vs Task Completion Time", x = "SUS Score", y = "Time (sec)") +
-      theme_minimal()
-    plot2 <- ggplot(df, aes(x = SUS_Score, y = Number_of_Errors)) +
-      geom_point() +
-      geom_smooth(method = "lm", color = "blue", se = TRUE) +
-      labs(title = "SUS Score vs Number of Errors", x = "SUS Score", y = "Errors") +
-      theme_minimal()
-    plot3 <- ggplot(df, aes(x = Likert_Score, y = Task_Completion_Time)) +
-      geom_point() +
-      geom_smooth(method = "lm", color = "darkgreen", se = TRUE) +
-      labs(title = "Likert Score vs Task Completion Time", x = "Likert Score", y = "Time (sec)") +
-      theme_minimal()
-    (plot1 | plot2) / plot3 + patchwork::plot_annotation(title = "Figure: Scatterplots with Linear Regression")
+    p1 <- ggplot(df, aes(x = SUS_Score, y = Task_Completion_Time)) + geom_point() + geom_smooth(method = "lm") + theme_minimal()
+    p2 <- ggplot(df, aes(x = SUS_Score, y = Number_of_Errors)) + geom_point() + geom_smooth(method = "lm") + theme_minimal()
+    p3 <- ggplot(df, aes(x = Likert_Score, y = Task_Completion_Time)) + geom_point() + geom_smooth(method = "lm") + theme_minimal()
+    (p1 | p2) / p3
   })
+
   output$diagnostics <- renderPlot({
     df <- filtered_data()
-    lm_sus <- lm(SUS_Score ~ DisabilityType, data = df)
-    lm_time <- lm(Task_Completion_Time ~ DisabilityType, data = df)
-    lm_likert <- lm(Likert_Score ~ DisabilityType, data = df)
-    resid_plot <- function(model, title) {
-      ggplot(data.frame(Fitted = fitted(model), Residuals = resid(model)),
-            aes(x = Fitted, y = Residuals)) +
-        geom_point(color = "#2c3e50", alpha = 0.6) +
-        geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-        labs(title = title, x = "Fitted Values", y = "Residuals") +
-        theme_minimal()
+    p <- function(model, title) {
+      ggplot(data.frame(Fitted = fitted(model), Residuals = resid(model)), aes(Fitted, Residuals)) +
+        geom_point() + geom_hline(yintercept = 0, linetype = "dashed") + labs(title = title) + theme_minimal()
     }
-    p1 <- resid_plot(lm_sus, "SUS Score: Residuals vs Fitted")
-    p2 <- resid_plot(lm_time, "Task Time: Residuals vs Fitted")
-    p3 <- resid_plot(lm_likert, "Likert Score: Residuals vs Fitted")
-    p1 / p2 / p3 + patchwork::plot_annotation(title = "Figure: Residuals vs Fitted - Homogeneity of Variance")
+    m1 <- lm(SUS_Score ~ DisabilityType, data = df)
+    m2 <- lm(Task_Completion_Time ~ DisabilityType, data = df)
+    m3 <- lm(Likert_Score ~ DisabilityType, data = df)
+    p(m1, "SUS") / p(m2, "Time") / p(m3, "Likert")
   })
-  # CORRELATIONS
+
   output$statsSummary <- renderPrint({
     df <- filtered_data()
-    cor_sus_time <- cor.test(df$SUS_Score, df$Task_Completion_Time, method = "pearson")
-    cor_sus_errors <- cor.test(df$SUS_Score, df$Number_of_Errors, method = "pearson")
-    cor_likert_time <- cor.test(df$Likert_Score, df$Task_Completion_Time, method = "pearson")
-    # ANOVA (discapacidad como within, género como between)
-    suppressMessages(library(afex))
-    suppressMessages(library(emmeans))
-    aov_sus <- aov_ez(id = "Student", dv = "SUS_Score", within = "DisabilityType", between = "Gender", data = df)
-    aov_time <- aov_ez(id = "Student", dv = "Task_Completion_Time", within = "DisabilityType", between = "Gender", data = df)
-    aov_likert <- aov_ez(id = "Student", dv = "Likert_Score", within = "DisabilityType", between = "Gender", data = df)
-    # Post-hoc Tukey
-    tukey_sus <- emmeans(aov_sus, pairwise ~ DisabilityType, adjust = "tukey")
-    tukey_time <- emmeans(aov_time, pairwise ~ DisabilityType, adjust = "tukey")
-    tukey_likert <- emmeans(aov_likert, pairwise ~ DisabilityType, adjust = "tukey")
-    cat("=== Pearson Correlations ===\n")
-    cat("SUS Score vs Task Completion Time:\n"); print(cor_sus_time)
-    cat("\nSUS Score vs Number of Errors:\n"); print(cor_sus_errors)
-    cat("\nLikert Score vs Task Completion Time:\n"); print(cor_likert_time)
-    cat("\n\n=== ANOVA: SUS Score ===\n")
-    print(summary(aov_sus))
-    cat("\nPost-hoc Tukey:\n"); print(tukey_sus$contrasts)
-    cat("\n\n=== ANOVA: Task Completion Time ===\n")
-    print(summary(aov_time))
-    cat("\nPost-hoc Tukey:\n"); print(tukey_time$contrasts)
-    cat("\n\n=== ANOVA: Likert Score ===\n")
-    print(summary(aov_likert))
-    cat("\nPost-hoc Tukey:\n"); print(tukey_likert$contrasts)
+    cat("=== Correlations ===\n")
+    print(cor.test(df$SUS_Score, df$Task_Completion_Time))
+    print(cor.test(df$SUS_Score, df$Number_of_Errors))
+    print(cor.test(df$Likert_Score, df$Task_Completion_Time))
+    cat("\n=== ANOVAs ===\n")
+    a1 <- aov_ez(id = "Student", dv = "SUS_Score", within = "DisabilityType", between = "Gender", data = df)
+    a2 <- aov_ez(id = "Student", dv = "Task_Completion_Time", within = "DisabilityType", between = "Gender", data = df)
+    a3 <- aov_ez(id = "Student", dv = "Likert_Score", within = "DisabilityType", between = "Gender", data = df)
+    print(summary(a1))
+    print(summary(a2))
+    print(summary(a3))
   })
 }
-shinyApp(ui = ui, server = server)
+
+shinyApp(ui, server)
 # To run the app:shiny::runApp("/Users/carbeluche/Desktop/TFG/FDP")
+
 
 
