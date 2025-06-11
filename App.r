@@ -97,6 +97,8 @@ data <- data.frame(
 
 )
 palette <- c("Motor" = "#e7d0f5", "Visual" = "#dcf0f7", "Auditory" = "#ffebfd")  
+gender_colors <- c("MALE" = "#dee6fc", "FEMALE" = "#edfcee")
+assist_colors <- c("YES" = "#fcf7d2", "NO" = "#f7d2d5")
 custom_theme <- theme_minimal(base_size = 16) +
   theme(
     axis.text = element_text(size = 14),
@@ -207,11 +209,27 @@ server <- function(input, output) {
 
   output$distributionPlots <- renderPlot({
     df <- filtered_data()
-    p1 <- ggplot(df, aes(x = DisabilityType, fill = Gender)) + geom_bar(position = "dodge") + theme_minimal()
-    p2 <- ggplot(df, aes(x = DisabilityType, fill = AssistanceNeeded)) + geom_bar(position = "dodge") + theme_minimal()
-    p3 <- ggplot(df, aes(x = AssistanceNeeded, fill = Gender)) + geom_bar(position = "dodge") + theme_minimal()
+    p1 <- ggplot(df, aes(x = DisabilityType, fill = Gender)) +
+      geom_bar(position = "dodge") +
+      scale_fill_manual(values = gender_colors) +
+      theme_minimal() +
+      labs(title = "Gender by Disability")
+
+    p2 <- ggplot(df, aes(x = DisabilityType, fill = AssistanceNeeded)) +
+      geom_bar(position = "dodge") +
+      scale_fill_manual(values = assist_colors) +
+      theme_minimal() +
+      labs(title = "Assistance by Disability")
+
+    p3 <- ggplot(df, aes(x = AssistanceNeeded, fill = Gender)) +
+      geom_bar(position = "dodge") +
+      scale_fill_manual(values = gender_colors) +
+      theme_minimal() +
+      labs(title = "Gender by Assistance")
+
     grid.arrange(p1, p2, p3, ncol = 3)
   })
+
 
   output$scatterPlots <- renderPlot({
     df <- filtered_data()
@@ -250,7 +268,7 @@ server <- function(input, output) {
 }
 
 shinyApp(ui, server)
-# To run the app:shiny::runApp("/Users/carbeluche/Desktop/TFG/FDP")
+# To run the app:  shiny::runApp("/Users/carbeluche/Desktop/TFG/FDP")
 
 
 
